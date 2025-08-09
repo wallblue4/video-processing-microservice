@@ -1,0 +1,33 @@
+# video-processing-microservice/render.yaml
+services:
+  - type: web
+    name: video-processor-tustockya
+    env: python
+    plan: starter  # $7/mes - Recursos dedicados para procesamiento
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    
+    envVars:
+      - key: DEBUG
+        value: false
+      - key: GOOGLE_CLOUD_PROJECT_ID
+        sync: false  # Configurar manualmente
+      - key: GOOGLE_CLOUD_LOCATION
+        value: us-central1
+      - key: PINECONE_API_KEY
+        sync: false  # Configurar manualmente
+      - key: PINECONE_INDEX_NAME
+        value: sneaker-embeddings
+      - key: API_KEY
+        generateValue: true  # Genera API key automáticamente
+      - key: MAX_VIDEO_SIZE_MB
+        value: 100
+      - key: MAX_FRAMES_TO_EXTRACT
+        value: 10
+      - key: TEMP_STORAGE_PATH
+        value: /tmp/videos
+    
+    healthCheckPath: /health
+    autoDeploy: true
+    branch: main
