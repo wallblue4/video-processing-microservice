@@ -21,8 +21,10 @@ services:
         value: sneaker-embeddings
       - key: API_KEY
         generateValue: true  # Genera API key automáticamente
+      - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
+        sync: false
       - key: MAX_VIDEO_SIZE_MB
-        value: 100
+        value: 10
       - key: MAX_FRAMES_TO_EXTRACT
         value: 10
       - key: TEMP_STORAGE_PATH

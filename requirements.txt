@@ -1,25 +1,31 @@
-# video-processing-microservice/requirements.txt
+# requirements.txt - ✅ USAR VERSIONES DEL MICROSERVICIO CLASIFICACIÓN
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 
-# Video processing
-opencv-python==4.8.0.76
+# Video processing - ✅ MANTENER ORIGINALES
+opencv-python-headless==4.8.0.76
 numpy==1.24.0
 
-# Google Cloud AI
-google-cloud-aiplatform==1.34.0
+# Google Cloud - 🆕 VERSIONES EXACTAS DEL MICROSERVICIO CLASIFICACIÓN
+google-cloud-aiplatform==1.71.1
+vertexai==1.71.1
+google-auth==2.27.0
+google-auth-oauthlib==1.2.0
+google-auth-httplib2==0.2.0
+grpcio==1.60.0
+protobuf==4.25.1
 
-# Vector database
-pinecone-client==2.2.4
+# Vector database - 🆕 VERSIÓN DEL MICROSERVICIO CLASIFICACIÓN
+pinecone-client==3.0.3
 
-# HTTP client
+# HTTP client - ✅ MANTENER
 httpx==0.25.0
 
-# Image processing
+# Image processing - ✅ MANTENER
 Pillow==10.0.0
 
-# Settings
-pydantic==2.5.2
-pydantic-settings==2.1.0
+# Settings - 🆕 VERSIONES DEL MICROSERVICIO CLASIFICACIÓN
+pydantic==2.4.2
+pydantic-settings==2.0.3
 python-dotenv==1.0.0

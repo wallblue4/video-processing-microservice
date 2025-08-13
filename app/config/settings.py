@@ -25,8 +25,8 @@ class Settings(BaseSettings):
     PINECONE_INDEX_NAME: str = Field(default="sneaker-embeddings", description="Pinecone Index Name")
     
     # Video processing
-    MAX_VIDEO_SIZE_MB: int = Field(default=100, description="Max video size in MB")
-    MAX_PROCESSING_TIME_MINUTES: int = Field(default=10, description="Max processing time")
+    MAX_VIDEO_SIZE_MB: int = Field(default=10, description="Max video size in MB")
+    MAX_PROCESSING_TIME_MINUTES: int = Field(default=1, description="Max processing time")
     MAX_FRAMES_TO_EXTRACT: int = Field(default=10, description="Max frames to extract")
     
     # Storage

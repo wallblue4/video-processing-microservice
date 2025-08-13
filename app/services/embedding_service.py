@@ -40,6 +40,9 @@ class EmbeddingService:
         """Inicializar modelo Google Multimodal"""
         try:
             logger.info("🔄 Inicializando Google Multimodal...")
+
+            if not os.environ.get('GOOGLE_APPLICATION_CREDENTIALS'):
+                logger.warning("⚠️ GOOGLE_APPLICATION_CREDENTIALS no configurado")
             
             vertexai.init(project=self.project_id, location=self.location)
             self.model = MultiModalEmbeddingModel.from_pretrained("multimodalembedding@001")
