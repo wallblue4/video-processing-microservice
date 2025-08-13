@@ -134,34 +134,35 @@ class VideoProcessor:
         
         logger.info(f"✅ Video validado - Duración: {duration:.1f}s, FPS: {fps}")
     
+    # REEMPLAZAR EN video_processor.py
     async def _extract_key_frames(self, video_path: str) -> List[np.ndarray]:
-        """Extraer frames clave del video"""
+        """Extracción inteligente de frames para reconocimiento de productos"""
+        
+        # 1. Configuración adaptativa
+        config = self._get_adaptive_config(video_path)
+        
+        # 2. Análisis multi-criterio
+        candidates = await self._analyze_all_frames(video_path, config)
+        
+        # 3. Selección óptima
+        selected_indices = self._select_optimal_frames(candidates, config["max_frames"])
+        
+        # 4. Extracción y optimización
+        frames = []
         cap = cv2.VideoCapture(video_path)
         
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = int(cap.get(cv2.CAP_PROP_FPS))
-        
-        # Calcular intervalo para obtener frames distribuidos
-        max_frames = min(settings.MAX_FRAMES_TO_EXTRACT, total_frames)
-        frame_interval = max(1, total_frames // max_frames)
-        
-        frames = []
-        frame_indices = []
-        
-        # Extraer frames distribuidos uniformemente
-        for i in range(0, total_frames, frame_interval):
-            cap.set(cv2.CAP_PROP_POS_FRAMES, i)
+        for idx in selected_indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
             ret, frame = cap.read()
             
-            if ret and len(frames) < max_frames:
-                # Redimensionar frame para optimizar procesamiento
-                frame_resized = cv2.resize(frame, (640, 480))
-                frames.append(frame_resized)
-                frame_indices.append(i)
+            if ret:
+                # Optimización específica para reconocimiento
+                optimized = await self._optimize_for_product_recognition(frame)
+                frames.append(optimized)
         
         cap.release()
         
-        logger.info(f"🎯 Extraídos {len(frames)} frames de {total_frames} totales")
+        logger.info(f"🎯 Extraídos {len(frames)} frames óptimos de {selected_indices[-1]} totales")
         return frames
     
     async def _consolidate_frame_results(
