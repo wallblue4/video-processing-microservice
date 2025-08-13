@@ -1,13 +1,13 @@
-# requirements.txt - VERSIONES ACTUALIZADAS
+# requirements.txt - CORREGIDO
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 
-# Video processing - versiones más nuevas
+# Video processing
 opencv-python-headless==4.10.0.84
 numpy==1.26.4
 
-# Google Cloud - versiones compatibles
+# Google Cloud
 google-cloud-aiplatform==1.71.1
 vertexai==1.71.1
 google-auth==2.27.0
@@ -16,8 +16,8 @@ google-auth-httplib2==0.2.0
 grpcio==1.60.0
 protobuf==4.25.1
 
-# Vector database
-pinecone-client==3.0.3
+# Vector database - ✅ VERSIÓN CORREGIDA
+pinecone-client==3.2.2
 
 # HTTP client
 httpx==0.25.0
