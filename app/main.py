@@ -244,26 +244,34 @@ async def process_video_background(
 
 # ✅ MANTENER: Notificación igual
 async def notify_completion(callback_url: str, job_id: int, status: str, results: Dict[str, Any]):
-    """✅ MANTENER: Notificar completación al sistema principal"""
+    """
+    Notificar completación al sistema principal - MEJORADO
+    """
     try:
+        # 🆕 AGREGAR MÁS METADATOS EN EL CALLBACK
+        callback_data = {
+            "job_id": job_id,
+            "status": status,
+            "results": json.dumps({
+                **results,
+                "callback_timestamp": datetime.now().isoformat(),
+                "microservice_version": settings.VERSION
+            })
+        }
+        
         async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(
-                callback_url,
-                data={
-                    "job_id": job_id,
-                    "status": status,
-                    "results": json.dumps(results)
-                }
-            )
+            response = await client.post(callback_url, data=callback_data)
             
             if response.status_code == 200:
-                logger.info(f"✅ Notificación enviada - Job ID: {job_id}")
+                logger.info(f"✅ Callback enviado exitosamente - Job ID: {job_id}")
             else:
-                logger.error(f"❌ Error notificando job {job_id}: {response.status_code}")
+                logger.error(f"❌ Error en callback job {job_id}: HTTP {response.status_code}")
+                logger.error(f"Response: {response.text}")
                 
     except Exception as e:
-        logger.error(f"❌ Error enviando notificación job {job_id}: {e}")
+        logger.error(f"❌ Error enviando callback job {job_id}: {e}")
 
+        
 # ✅ MANTENER: Job status igual
 @app.get("/api/v1/job-status/{job_id}")
 async def get_job_status(
