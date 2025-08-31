@@ -1,6 +1,6 @@
 # video-processing-microservice/app/main.py - VERSIÓN ACTUALIZADA
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends, Security
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends, Security , Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 import json
