@@ -19,11 +19,73 @@ logger = logging.getLogger(__name__)
 # Security (✅ mantener igual)
 security = HTTPBearer(auto_error=False)
 
-async def verify_api_key(credentials: HTTPAuthorizationCredentials = Security(security)):
-    """✅ MANTENER: Verificar API Key"""
-    if settings.API_KEY:
-        if not credentials or credentials.credentials != settings.API_KEY:
-            raise HTTPException(status_code=401, detail="API Key inválida")
+async def verify_api_key(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    """🔍 VERSIÓN CON LOGS DETALLADOS - Verificar API Key"""
+    
+    # 🔍 LOG: Configuración del microservicio
+    microservice_api_key = getattr(settings, 'API_KEY', 'NO_CONFIGURADA')
+    logger.info(f"🔧 MICROSERVICIO - API_KEY configurada: {microservice_api_key[:10] + '...' if microservice_api_key and microservice_api_key != 'NO_CONFIGURADA' else 'VACÍA/NO_CONFIGURADA'}")
+    
+    # 🔍 LOG: Headers recibidos
+    auth_header = request.headers.get("Authorization")
+    x_api_key_header = request.headers.get("X-API-Key")
+    
+    logger.info(f"📥 HEADERS RECIBIDOS:")
+    logger.info(f"   - Authorization: {auth_header[:20] + '...' if auth_header else 'NO_PRESENTE'}")
+    logger.info(f"   - X-API-Key: {x_api_key_header[:10] + '...' if x_api_key_header else 'NO_PRESENTE'}")
+    
+    # 🔍 LOG: Credentials del Security
+    if credentials:
+        logger.info(f"📋 CREDENTIALS - scheme: {credentials.scheme}, credentials: {credentials.credentials[:10] + '...' if credentials.credentials else 'VACÍO'}")
+    else:
+        logger.info(f"📋 CREDENTIALS: None")
+    
+    # 🔍 VALIDACIÓN: Si no hay API_KEY configurada, permitir acceso
+    if not settings.API_KEY:
+        logger.info("✅ ACCESO PERMITIDO - No hay API_KEY configurada en el microservicio")
+        return True
+    
+    # 🔍 VALIDACIÓN: Verificar diferentes métodos de autenticación
+    received_api_key = None
+    auth_method = None
+    
+    # Método 1: X-API-Key header (preferido)
+    if x_api_key_header:
+        received_api_key = x_api_key_header
+        auth_method = "X-API-Key header"
+    
+    # Método 2: Authorization Bearer
+    elif credentials and credentials.credentials:
+        received_api_key = credentials.credentials
+        auth_method = "Authorization Bearer"
+    
+    # Método 3: Authorization header directo
+    elif auth_header and auth_header.startswith("Bearer "):
+        received_api_key = auth_header.replace("Bearer ", "")
+        auth_method = "Authorization header directo"
+    
+    # 🔍 LOG: Comparación detallada
+    logger.info(f"🔑 COMPARACIÓN DE API KEYS:")
+    logger.info(f"   - Método usado: {auth_method or 'NINGUNO'}")
+    logger.info(f"   - Key recibida: {received_api_key[:10] + '...' if received_api_key else 'NO_RECIBIDA'}")
+    logger.info(f"   - Key esperada: {settings.API_KEY[:10] + '...' if settings.API_KEY else 'NO_CONFIGURADA'}")
+    logger.info(f"   - ¿Coinciden?: {received_api_key == settings.API_KEY if received_api_key and settings.API_KEY else 'NO_COMPARABLE'}")
+    
+    # 🔍 VALIDACIÓN FINAL
+    if not received_api_key:
+        logger.error("❌ ACCESO DENEGADO - No se recibió API Key por ningún método")
+        raise HTTPException(status_code=401, detail="API Key requerida")
+    
+    if received_api_key != settings.API_KEY:
+        logger.error("❌ ACCESO DENEGADO - API Key no coincide")
+        logger.error(f"   - Esperada: '{settings.API_KEY}' (longitud: {len(settings.API_KEY) if settings.API_KEY else 0})")
+        logger.error(f"   - Recibida: '{received_api_key}' (longitud: {len(received_api_key)})")
+        raise HTTPException(status_code=401, detail="API Key inválida")
+    
+    logger.info("✅ ACCESO PERMITIDO - API Key válida")
     return True
 
 # 🆕 AGREGAR: Lifespan para setup de credenciales (patrón del microservicio clasificación)
@@ -168,15 +230,18 @@ async def health_check():
 # ✅ MANTENER: Endpoint de procesamiento (actualizar para usar lazy loading)
 @app.post("/api/v1/process-video")
 async def process_video(
+    request: Request,
     job_id: int = Form(..., description="ID del job en sistema principal"),
     callback_url: str = Form(..., description="URL para notificar completación"),
     metadata: str = Form(..., description="Metadata del job en JSON"),
     video: UploadFile = File(..., description="Archivo de video a procesar"),
-    _: bool = Depends(verify_api_key)
+    _: bool = Depends(lambda req=request: verify_api_key(req, Security(security)))
 ):
     """✅ MANTENER: Endpoint principal para procesamiento de video"""
     try:
         logger.info(f"🎬 Iniciando procesamiento - Job ID: {job_id}")
+        logger.info(f"📞 Callback URL: {callback_url}")
+        logger.info(f"📊 Metadata recibida: {metadata}")
         
         # ✅ MANTENER: Validaciones igual
         if not video.content_type.startswith('video/'):
