@@ -293,6 +293,9 @@ class VideoProcessor:
        
         logger.info(f"✅ {len(frames)} frames agregados como datos de entrenamiento")
 
+from .video_processor_optimized import VideoProcessorOptimized
+
+# Crear instancia optimizada
 video_processor_optimized = VideoProcessorOptimized()
 
 # Mantener compatibilidad con nombre anterior
