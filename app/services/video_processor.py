@@ -292,3 +292,8 @@ class VideoProcessor:
                 continue
        
         logger.info(f"✅ {len(frames)} frames agregados como datos de entrenamiento")
+
+video_processor_optimized = VideoProcessorOptimized()
+
+# Mantener compatibilidad con nombre anterior
+video_processor = video_processor_optimized
