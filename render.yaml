@@ -1,13 +1,18 @@
-# video-processing-microservice/render.yaml
+# render.yaml - CONFIGURACIÓN ULTRA-OPTIMIZADA
 services:
   - type: web
-    name: video-processor-tustockya
+    name: video-processor-ultra-optimized
     env: python
-    plan: starter  # $7/mes - Recursos dedicados para procesamiento
+    plan: standard  # $25/mes - Necesario para optimizaciones
     region: oregon
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    buildCommand: |
+      pip install --upgrade pip setuptools wheel &&
+      pip install -r requirements.txt
+    startCommand: |
+      uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1 \
+      --loop uvloop --http h11 --log-level info
     
+    # Variables de entorno ultra-optimizadas
     envVars:
       - key: DEBUG
         value: false
@@ -20,16 +25,67 @@ services:
       - key: PINECONE_INDEX_NAME
         value: sneaker-embeddings
       - key: API_KEY
-        generateValue: true  # Genera API key automáticamente
+        generateValue: true
       - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
         sync: false
+      
+      # Configuración de video optimizada
       - key: MAX_VIDEO_SIZE_MB
+        value: 15  # Aumentado para mejor calidad
+      - key: MAX_PROCESSING_TIME_MINUTES
+        value: 3   # Aumentado para videos más largos
+      
+      # Configuración ultra-optimizada
+      - key: SHORT_VIDEO_THRESHOLD_SECONDS
+        value: 6.0
+      - key: VERY_SHORT_VIDEO_THRESHOLD_SECONDS
+        value: 3.0
+      - key: MAX_FRAMES_VERY_SHORT_VIDEO
+        value: 8
+      - key: MAX_FRAMES_SHORT_VIDEO
         value: 10
       - key: MAX_FRAMES_TO_EXTRACT
-        value: 10
+        value: 12
+      
+      # Performance optimizations
+      - key: ENABLE_PARALLEL_PROCESSING
+        value: true
+      - key: BATCH_SIZE_EMBEDDINGS
+        value: 4
+      - key: MAX_CONCURRENT_FRAMES
+        value: 4
+      - key: FRAME_RESIZE_TARGET
+        value: 512
+      
+      # Vertex AI optimizations
+      - key: VERTEX_AI_TIMEOUT_SECONDS
+        value: 25
+      - key: VERTEX_AI_RETRY_ATTEMPTS
+        value: 2
+      
+      # Confidence thresholds
+      - key: MIN_CONFIDENCE_FOR_TRAINING
+        value: 0.85
+      - key: MIN_CONFIDENCE_FOR_RESPONSE
+        value: 0.30
+      
       - key: TEMP_STORAGE_PATH
         value: /tmp/videos
+    
+    # Configuración de recursos
+    scaling:
+      minInstances: 1
+      maxInstances: 2
     
     healthCheckPath: /health
     autoDeploy: true
     branch: main
+    
+    # Headers optimizados
+    headers:
+      - path: /*
+        name: X-Optimization-Level
+        value: ultra_optimized
+      - path: /*
+        name: X-Service-Version
+        value: 2.0.0
