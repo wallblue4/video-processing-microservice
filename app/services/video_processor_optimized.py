@@ -672,14 +672,14 @@ class VideoProcessorOptimized:
                     "brand": best_product.get("brand"),
                     "model_name": best_product.get("model_name"),
                     "color": best_product.get("color"),
-                    "confidence": best_product.get("confidence") / 100.0,
+                    "confidence": float(best_product.get("confidence", 0) / 100.0),  # ← FIX: Convertir a float
                     "source": "optimized_video_training",
-                    "warehouse_id": metadata.get("warehouse_id"),
-                    "admin_id": metadata.get("admin_id"),
-                    "frame_index": i,
-                    "training_session": metadata.get("job_db_id"),
+                    "warehouse_id": int(metadata.get("warehouse_id", 0)),            # ← FIX: Convertir a int
+                    "admin_id": int(metadata.get("admin_id", 0)),                   # ← FIX: Convertir a int
+                    "frame_index": int(i),                                          # ← FIX: Convertir a int
+                    "training_session": str(metadata.get("job_db_id", "unknown")), # ← FIX: Convertir a str
                     "optimization_level": "ultra_optimized",
-                    "statistical_confidence": consolidated_result.get("ai_info", {}).get("statistical_confidence"),
+                    "statistical_confidence": consolidated_result.get("ai_info", {}).get("statistical_confidence", "medium"),
                     "training_timestamp": int(time.time())
                 }
                 
