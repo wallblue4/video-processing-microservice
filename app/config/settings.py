@@ -116,7 +116,7 @@ class Settings(BaseSettings):
     TEMP_STORAGE_PATH: str = Field(default="/tmp/videos", description="Temp storage for videos")
     
     # 🆕 CONFIDENCE THRESHOLDS
-    MIN_CONFIDENCE_FOR_TRAINING: float = Field(default=0.85, description="Confianza mínima para agregar a entrenamiento")
+    MIN_CONFIDENCE_FOR_TRAINING: float = Field(default=0.75, description="Confianza mínima para agregar a entrenamiento")
     MIN_CONFIDENCE_FOR_RESPONSE: float = Field(default=0.30, description="Confianza mínima para incluir en respuesta")
     
     class Config:
