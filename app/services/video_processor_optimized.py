@@ -605,6 +605,16 @@ class VideoProcessorOptimized:
         # Confianza general
         overall_confidence = sorted_models[0][1]['final_score'] if sorted_models else 0.0
         
+        logger.info(f"🔍 DEBUG - Overall confidence: {overall_confidence:.3f} ({overall_confidence*100:.1f}%)")
+        logger.info(f"🔍 DEBUG - Umbral requerido: {settings.MIN_CONFIDENCE_FOR_TRAINING:.3f} ({settings.MIN_CONFIDENCE_FOR_TRAINING*100:.1f}%)")
+        logger.info(f"🔍 DEBUG - ¿Califica para entrenamiento?: {overall_confidence >= settings.MIN_CONFIDENCE_FOR_TRAINING}")
+        
+        if sorted_models:
+            best_model = sorted_models[0]
+            logger.info(f"🔍 DEBUG - Mejor producto: {best_model[1]['product'].get('brand')} {best_model[1]['product'].get('model_name')}")
+            logger.info(f"🔍 DEBUG - Frecuencia detección: {best_model[1]['frequency_ratio']:.2f}")
+            logger.info(f"🔍 DEBUG - Score promedio: {best_model[1]['mean_score']:.3f}")
+        
         # Información AI detallada
         ai_info = {
             "processing_method": "ultra_optimized_multi_frame",
