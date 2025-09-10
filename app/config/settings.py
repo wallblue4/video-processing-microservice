@@ -118,6 +118,56 @@ class Settings(BaseSettings):
     # 🆕 CONFIDENCE THRESHOLDS
     MIN_CONFIDENCE_FOR_TRAINING: float = Field(default=0.75, description="Confianza mínima para agregar a entrenamiento")
     MIN_CONFIDENCE_FOR_RESPONSE: float = Field(default=0.30, description="Confianza mínima para incluir en respuesta")
+
+    MIN_VECTORS_FOR_PRODUCT: int = Field(default=10, description="Vectores mínimos por producto")
+    TRAINING_FRAMES_PERCENTAGE: float = Field(default=0.8, description="% de frames para entrenamiento")
+
+    # 🆕 CONFIGURACIONES 360° ESCALABLES
+    ENABLE_360_PRODUCT_MODE: bool = Field(default=True, description="Activar modo 360° universal")
+
+    # Frames máximos por duración
+    MAX_FRAMES_ULTRA_SHORT: int = Field(default=25, description="Frames para videos 0-3s")
+    MAX_FRAMES_SHORT: int = Field(default=35, description="Frames para videos 3-10s") 
+    MAX_FRAMES_MEDIUM: int = Field(default=45, description="Frames para videos 10-30s")
+    MAX_FRAMES_LONG: int = Field(default=60, description="Frames para videos 30s+")
+
+    # Intervalos por duración
+    INTERVAL_ULTRA_SHORT: float = Field(default=0.1, description="Intervalo para videos 0-3s")
+    INTERVAL_SHORT: float = Field(default=0.2, description="Intervalo para videos 3-10s")
+    INTERVAL_MEDIUM: float = Field(default=0.5, description="Intervalo para videos 10-30s") 
+    INTERVAL_LONG: float = Field(default=1.0, description="Intervalo para videos 30s+")
+
+    # Porcentajes de entrenamiento por duración
+    TRAINING_PCT_ULTRA_SHORT: float = Field(default=0.8, description="% entrenamiento videos 0-3s")
+    TRAINING_PCT_SHORT: float = Field(default=0.75, description="% entrenamiento videos 3-10s")
+    TRAINING_PCT_MEDIUM: float = Field(default=0.7, description="% entrenamiento videos 10-30s")
+    TRAINING_PCT_LONG: float = Field(default=0.65, description="% entrenamiento videos 30s+")
+
+    PRODUCT_360_CONFIG: Dict[str, Dict[str, Any]] = Field(default={
+    "360_product": {
+        "strategy": "comprehensive_360_sampling",
+        "interval_seconds": 0.1,
+        "max_frames": 25,
+        "quality_config": {
+            "min_brightness": 5,
+            "min_variance": 15, 
+            "quality_threshold": 0.15,
+            "focus_weight": 0.30,
+            "brightness_weight": 0.20,
+            "contrast_weight": 0.25,
+            "motion_weight": 0.25
+        },
+        "consolidation_weights": {
+            "mean_score": 0.30,
+            "max_score": 0.20,
+            "consistency": 0.30,
+            "frequency": 0.20
+        },
+        "training_percentage": 0.8,
+        "min_vectors_required": 10
+        }
+        
+    })
     
     class Config:
         env_file = ".env"

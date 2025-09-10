@@ -116,10 +116,81 @@ class VideoProcessorOptimized:
             self._previous_frame_cache.pop(job_id, None)
     
     def _get_adaptive_config(self, duration: float) -> Dict[str, Any]:
-        """⚙️ Configuración adaptativa basada en duración del video"""
+        """⚙️ Configuración adaptativa - ESTRATEGIA 360° ESCALABLE"""
         
+        if settings.ENABLE_360_PRODUCT_MODE:
+            # 🎯 MODO 360° PARA TODAS LAS DURACIONES
+            logger.info(f"🔄 MODO 360° ESCALABLE ACTIVADO para video de {duration:.1f}s")
+            return self._get_360_product_config_scalable(duration)
+        
+        # Fallback a configuraciones originales si 360° deshabilitado
+        logger.info(f"⚙️ Usando configuración legacy para {duration:.1f}s")
+        return self._get_legacy_config(duration)
+
+
+    def _get_360_product_config_scalable(self, duration: float) -> Dict[str, Any]:
+        """🎯 Configuración 360° escalable para CUALQUIER duración"""
+        
+        # 📊 DETERMINAR TIER BASADO EN DURACIÓN
+        if duration <= 3.0:
+            config_tier = "ultra_short"
+            max_frames = settings.MAX_FRAMES_ULTRA_SHORT
+            interval = settings.INTERVAL_ULTRA_SHORT
+            training_pct = settings.TRAINING_PCT_ULTRA_SHORT
+            min_vectors = max(10, int(max_frames * 0.4))
+            
+        elif duration <= 10.0:
+            config_tier = "short"
+            max_frames = settings.MAX_FRAMES_SHORT
+            interval = settings.INTERVAL_SHORT
+            training_pct = settings.TRAINING_PCT_SHORT
+            min_vectors = max(14, int(max_frames * 0.4))
+            
+        elif duration <= 30.0:
+            config_tier = "medium"
+            max_frames = settings.MAX_FRAMES_MEDIUM
+            interval = settings.INTERVAL_MEDIUM
+            training_pct = settings.TRAINING_PCT_MEDIUM
+            min_vectors = max(18, int(max_frames * 0.4))
+            
+        else:
+            config_tier = "long"
+            max_frames = settings.MAX_FRAMES_LONG
+            interval = settings.INTERVAL_LONG
+            training_pct = settings.TRAINING_PCT_LONG
+            min_vectors = max(24, int(max_frames * 0.4))
+        
+        logger.info(f"📊 Config tier: {config_tier} | Max frames: {max_frames} | Interval: {interval}s | Training: {training_pct*100:.0f}%")
+        
+        return {
+            'strategy': 'comprehensive_360_sampling',
+            'config_tier': config_tier,
+            'interval_seconds': interval,
+            'max_frames': max_frames,
+            'quality_config': {
+                'min_brightness': 5,        # MUY permisivo para 360°
+                'min_variance': 15,         # MUY permisivo
+                'quality_threshold': 0.15,  # MUY permisivo
+                'focus_weight': 0.30,
+                'brightness_weight': 0.20,
+                'contrast_weight': 0.25,
+                'motion_weight': 0.25
+            },
+            'consolidation_weights': {
+                'mean_score': 0.30,     # Menos peso al promedio individual
+                'max_score': 0.20,      # Menos peso al mejor frame
+                'consistency': 0.30,    # MÁS peso a consistencia entre frames
+                'frequency': 0.20       # MÁS peso a frecuencia
+            },
+            'training_percentage': training_pct,
+            'min_vectors_required': min_vectors,
+            'priority': 'comprehensive_360_coverage'
+        }
+
+    def _get_legacy_config(self, duration: float) -> Dict[str, Any]:
+        """⚙️ Configuraciones legacy para fallback"""
+        # Las configuraciones originales que ya tenías
         if duration <= settings.VERY_SHORT_VIDEO_THRESHOLD_SECONDS:
-            # Videos muy cortos (≤3s) - Máxima densidad
             return {
                 'strategy': 'ultra_dense_sampling',
                 'interval_seconds': settings.DENSE_SAMPLING_INTERVAL_SECONDS,
@@ -128,26 +199,64 @@ class VideoProcessorOptimized:
                 'consolidation_weights': settings.CONSOLIDATION_WEIGHTS['very_short'],
                 'priority': 'maximize_coverage'
             }
-        elif duration <= settings.SHORT_VIDEO_THRESHOLD_SECONDS:
-            # Videos cortos (3-6s) - Alta densidad
-            return {
-                'strategy': 'balanced_dense_sampling',
-                'interval_seconds': settings.BALANCED_SAMPLING_INTERVAL_SECONDS,
-                'max_frames': settings.MAX_FRAMES_SHORT_VIDEO,
-                'quality_config': settings.QUALITY_FILTERS['short'],
-                'consolidation_weights': settings.CONSOLIDATION_WEIGHTS['short'],
-                'priority': 'balance_quality_coverage'
-            }
+
+
+    async def _extract_frames_adaptive_optimized(self, video_path: str, config: Dict[str, Any]) -> List[np.ndarray]:
+        """🎯 Extracción adaptativa - CON SOPORTE 360° ESCALABLE"""
+        
+        cap = cv2.VideoCapture(video_path)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        duration = total_frames / fps if fps > 0 else 0
+        
+        if config['strategy'] == 'comprehensive_360_sampling':
+            # 🆕 ESTRATEGIA 360° ESCALABLE
+            config_tier = config.get('config_tier', 'unknown')
+            logger.info(f"🎯 Aplicando extracción 360° escalable - Tier: {config_tier}")
+            
+            # Calcular frames distribuidos uniformemente
+            max_frames = min(config['max_frames'], total_frames)
+            
+            if total_frames <= max_frames:
+                # Si el video tiene pocos frames, usar todos
+                frame_indices = list(range(total_frames))
+            else:
+                # Distribuir uniformemente
+                frame_indices = [
+                    int(i * total_frames / max_frames) 
+                    for i in range(max_frames)
+                ]
+            
+            # Asegurar cobertura completa (primer y último frame)
+            if 0 not in frame_indices:
+                frame_indices[0] = 0
+            if (total_frames - 1) not in frame_indices:
+                frame_indices[-1] = total_frames - 1
+            
+            # Remover duplicados y ordenar
+            frame_indices = sorted(list(set(frame_indices)))
+            
+            logger.info(f"🎯 Extrayendo {len(frame_indices)} frames distribuidos uniformemente (tier: {config_tier})")
+            
         else:
-            # Videos normales (>6s) - Calidad prioritaria
-            return {
-                'strategy': 'quality_focused_sampling',
-                'interval_seconds': settings.STANDARD_SAMPLING_INTERVAL_SECONDS,
-                'max_frames': settings.MAX_FRAMES_TO_EXTRACT,
-                'quality_config': settings.QUALITY_FILTERS['standard'],
-                'consolidation_weights': settings.CONSOLIDATION_WEIGHTS['standard'],
-                'priority': 'maximize_quality'
-            }
+            # Estrategias originales
+            frame_indices = await self._calculate_frame_indices_original(video_path, config)
+        
+        # Extraer frames seleccionados
+        frames = []
+        for frame_idx in frame_indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+            ret, frame = cap.read()
+            
+            if ret:
+                # Optimizar frame para reconocimiento
+                optimized_frame = await self._optimize_frame_for_recognition(frame)
+                frames.append(optimized_frame)
+        
+        cap.release()
+        
+        logger.info(f"🎯 Frames finales extraídos: {len(frames)} (estrategia: {config['strategy']})")
+        return frames
     
     async def _validate_and_get_duration(self, video_path: str) -> float:
         """✅ Validación rápida y obtención de duración"""
@@ -635,6 +744,36 @@ class VideoProcessorOptimized:
             "ai_info": ai_info,
             "should_add_to_training": overall_confidence >= settings.MIN_CONFIDENCE_FOR_TRAINING
         }
+
+    def _get_360_product_config(self, duration: float) -> Dict[str, Any]:
+        """🎯 Configuración específica para productos 360° completos"""
+        
+        # Calcular frames óptimos basado en duración
+        optimal_frames = min(25, max(15, int(duration * 12)))  # ~12 frames por segundo
+        
+        return {
+            'strategy': 'comprehensive_360_sampling',
+            'interval_seconds': 0.1,  # Frame cada 100ms
+            'max_frames': optimal_frames,
+            'quality_config': {
+                'min_brightness': 5,        # MUY permisivo
+                'min_variance': 15,         # MUY permisivo  
+                'quality_threshold': 0.15,  # MUY permisivo
+                'focus_weight': 0.30,
+                'brightness_weight': 0.20,
+                'contrast_weight': 0.25,
+                'motion_weight': 0.25
+            },
+            'consolidation_weights': {
+                'mean_score': 0.30,     # Menos peso al promedio individual
+                'max_score': 0.20,      # Menos peso al mejor frame
+                'consistency': 0.30,    # MÁS peso a consistencia entre frames
+                'frequency': 0.20       # MÁS peso a frecuencia de detección
+            },
+            'training_percentage': settings.TRAINING_FRAMES_PERCENTAGE,  # 80%
+            'min_vectors_required': settings.MIN_VECTORS_FOR_PRODUCT,   # 10
+            'priority': 'comprehensive_360_coverage'
+        }
     
     async def _add_training_data_selective(
         self,
@@ -642,70 +781,85 @@ class VideoProcessorOptimized:
         consolidated_result: Dict[str, Any],
         metadata: Dict[str, Any]
     ) -> bool:
-        """📚 Agregar datos de entrenamiento de forma selectiva"""
+        """📚 Entrenamiento selectivo - SOPORTE 360° ESCALABLE"""
         
         detected_products = consolidated_result.get("detected_products", [])
         if not detected_products:
             logger.warning("⚠️ No hay productos detectados para entrenamiento")
             return False
         
-        # Usar solo el producto con mayor confianza
         best_product = detected_products[0]
         
-        if best_product['confidence'] < settings.MIN_CONFIDENCE_FOR_TRAINING * 100:
-            logger.info(f"⚠️ Confianza insuficiente para entrenamiento: {best_product['confidence']}%")
+        # Verificar confianza
+        confidence_threshold = settings.MIN_CONFIDENCE_FOR_TRAINING * 100
+        if best_product['confidence'] < confidence_threshold:
+            logger.info(f"⚠️ Confianza insuficiente: {best_product['confidence']:.1f}% < {confidence_threshold:.1f}%")
             return False
         
-        # Seleccionar solo los mejores frames (top 50%)
-        num_frames_for_training = max(1, len(frames) // 2)
-        selected_frames = frames[:num_frames_for_training]
+        # 🆕 SELECCIÓN 360° ESCALABLE
+        config_tier = consolidated_result.get('ai_info', {}).get('config_tier', 'unknown')
+        training_percentage = consolidated_result.get('ai_info', {}).get('training_percentage', 0.8)
+        min_vectors_required = consolidated_result.get('ai_info', {}).get('min_vectors_required', 10)
+        
+        num_frames_for_training = max(min_vectors_required, int(len(frames) * training_percentage))
+        
+        # Distribuir frames uniformemente (no solo los primeros)
+        if len(frames) > num_frames_for_training:
+            step = len(frames) // num_frames_for_training
+            selected_frames = frames[::step][:num_frames_for_training]
+        else:
+            selected_frames = frames
+        
+        logger.info(f"🎯 MODO 360° ESCALABLE [{config_tier}]: Entrenando con {len(selected_frames)} frames ({training_percentage*100:.0f}% del total)")
         
         training_success_count = 0
         
         for i, frame in enumerate(selected_frames):
             try:
-                # Generar embedding para entrenamiento
                 embedding = await self.embedding_service.get_image_embedding_from_array(frame)
                 
-                # Metadata enriquecida para Pinecone
                 training_metadata = {
                     "brand": best_product.get("brand"),
                     "model_name": best_product.get("model_name"),
                     "color": best_product.get("color"),
-                    "confidence": float(best_product.get("confidence", 0) / 100.0),  # ← FIX: Convertir a float
-                    "source": "optimized_video_training",
-                    "warehouse_id": int(metadata.get("warehouse_id", 0)),            # ← FIX: Convertir a int
-                    "admin_id": int(metadata.get("admin_id", 0)),                   # ← FIX: Convertir a int
-                    "frame_index": int(i),                                          # ← FIX: Convertir a int
-                    "training_session": str(metadata.get("job_db_id", "unknown")), # ← FIX: Convertir a str
-                    "optimization_level": "ultra_optimized",
-                    "statistical_confidence": consolidated_result.get("ai_info", {}).get("statistical_confidence", "medium"),
+                    "confidence": float(best_product.get("confidence", 0) / 100.0),
+                    "source": f"360_scalable_{config_tier}_training",  # 🆕 Identificar tier
+                    "warehouse_id": int(metadata.get("warehouse_id", 0)),
+                    "admin_id": int(metadata.get("admin_id", 0)),
+                    "frame_index": int(i),
+                    "training_session": str(metadata.get("job_db_id", "unknown")),
+                    "optimization_level": f"360_scalable_{config_tier}",  # 🆕 Nivel específico
+                    "config_tier": config_tier,  # 🆕 Metadata del tier
+                    "angle_coverage": f"frame_{i}_of_{len(selected_frames)}",
                     "training_timestamp": int(time.time())
                 }
                 
-                # Vector ID único con timestamp
-                vector_id = f"opt_train_{metadata.get('job_db_id', 'unknown')}_{i}_{int(time.time() * 1000)}"
+                vector_id = f"360s_{config_tier}_{metadata.get('job_db_id', 'unknown')}_{i}_{int(time.time() * 1000)}"
                 
-                # Agregar a Pinecone
                 success = await self.pinecone_service.upsert_vector(
                     vector_id, embedding, training_metadata
                 )
                 
                 if success:
                     training_success_count += 1
-                    logger.debug(f"📚 Frame {i+1} agregado a entrenamiento - Vector: {vector_id}")
+                    logger.debug(f"📚 Frame 360° {i+1} [{config_tier}] agregado - Vector: {vector_id}")
                 
-                # Pausa pequeña para evitar rate limiting
-                await asyncio.sleep(0.05)
+                await asyncio.sleep(0.03)
                 
             except Exception as e:
-                logger.error(f"❌ Error agregando frame {i} a entrenamiento: {e}")
+                logger.error(f"❌ Error agregando frame 360° {i}: {e}")
                 continue
         
         success_rate = training_success_count / len(selected_frames)
-        logger.info(f"✅ Entrenamiento completado: {training_success_count}/{len(selected_frames)} frames ({success_rate:.1%})")
         
-        return success_rate > 0.5  # Considerar exitoso si >50% de frames se agregaron
+        logger.info(f"✅ ENTRENAMIENTO 360° [{config_tier}] completado: {training_success_count}/{len(selected_frames)} frames ({success_rate:.1%})")
+        
+        if training_success_count >= min_vectors_required:
+            logger.info(f"🎯 ¡PRODUCTO 360° LISTO! {training_success_count} vectores agregados (mínimo: {min_vectors_required})")
+            return True
+        else:
+            logger.warning(f"⚠️ Entrenamiento 360° insuficiente: {training_success_count} < {min_vectors_required}")
+            return False
     
     async def _save_video_temp(self, video_file: UploadFile, job_id: int) -> str:
         """💾 Guardar video temporalmente con nombre optimizado"""
