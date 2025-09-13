@@ -621,62 +621,174 @@ class VideoProcessorOptimized:
         metadata: Dict[str, Any],
         config: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """📊 Consolidación avanzada con análisis estadístico completo"""
+        """📊 Consolidación avanzada con análisis estadístico completo y prioridad de metadata manual"""
         
         if not frame_results:
             return {
                 "detected_products": [],
                 "overall_confidence": 0.0,
                 "frames_analyzed": 0,
-                "ai_info": {"error": "No frames processed"}
+                "models_considered": 0,
+                "ai_info": {"error": "No frames processed"},
+                "should_add_to_training": False
             }
+        
+        # 🆕 PASO 1: VERIFICAR SI ES PRODUCTO NUEVO (METADATA MANUAL)
+        expected_brand = metadata.get("product_brand")
+        expected_model = metadata.get("product_model")
+        
+        if expected_brand and expected_model:
+            # Es un producto nuevo: usar datos del formulario, no detección automática
+            logger.info(f"🎯 PRODUCTO NUEVO DETECTADO: {expected_brand} {expected_model}")
+            logger.info(f"📝 Priorizando metadata manual sobre detección automática")
+            
+            # Calcular confianza basada en si encontramos productos similares
+            similarity_confidence = 0.0
+            total_detections = 0
+            
+            for frame_result in frame_results:
+                for product in frame_result.get("similar_products", []):
+                    total_detections += 1
+                    similarity_confidence += product.get("score", 0)
+            
+            # Promedio de similitud con productos existentes
+            avg_similarity = similarity_confidence / max(total_detections, 1)
+            
+            # Para productos nuevos, la confianza se basa en consistencia de detección
+            # Si no hay productos similares, alta confianza (producto único)
+            # Si hay similares, confianza media-alta (variante de producto existente)
+            manual_confidence = 0.95 if avg_similarity < 0.3 else 0.85
+            
+            detected_products = [{
+                'rank': 1,
+                'brand': expected_brand,
+                'model_name': expected_model,
+                'color': metadata.get('expected_colors', ['Unknown'])[0] if isinstance(metadata.get('expected_colors'), list) else 'Unknown',
+                'confidence': round(manual_confidence * 100, 2),
+                'mean_similarity': round(avg_similarity, 3),
+                'max_similarity': round(avg_similarity, 3),
+                'consistency_score': 1.0,  # Máxima consistencia por ser manual
+                'detection_frequency': len(frame_results),  # Presente en todos los frames
+                'frequency_percentage': 100.0,
+                'temporal_spread_seconds': len(frame_results) * config.get('interval_seconds', 0.1),
+                'frames_detected': list(range(len(frame_results))),
+                'detection_method': 'manual_form_input',
+                'similar_products_found': total_detections,
+                'avg_similarity_to_existing': round(avg_similarity, 3),
+                'statistical_metrics': {
+                    'median_score': round(avg_similarity, 3),
+                    'std_deviation': 0.0,  # Sin desviación por ser manual
+                    'score_range': 0.0
+                }
+            }]
+            
+            ai_info = {
+                "processing_method": "manual_metadata_priority",
+                "strategy_used": config['strategy'],
+                "consolidation_method": "manual_form_input_override",
+                "detection_source": "admin_form_submission",
+                "frames_analyzed": len(frame_results),
+                "manual_override": True,
+                "expected_brand": expected_brand,
+                "expected_model": expected_model,
+                "automatic_detections_found": total_detections,
+                "avg_similarity_to_existing_products": round(avg_similarity, 3)
+            }
+            
+            return {
+                "detected_products": detected_products,
+                "overall_confidence": manual_confidence,
+                "frames_analyzed": len(frame_results),
+                "models_considered": 1,  # Solo el modelo manual
+                "ai_info": ai_info,
+                "should_add_to_training": True,  # Siempre entrenar productos manuales
+                "training_source": "new_product_manual_entry",
+                "consolidation_type": "manual_metadata_priority"
+            }
+        
+        # 🔄 PASO 2: CONSOLIDACIÓN AUTOMÁTICA (cuando NO hay metadata manual)
+        logger.info("🤖 No hay metadata manual - usando consolidación automática")
         
         # Agrupar detecciones por modelo
         model_stats = {}
         
         for frame_result in frame_results:
             for product in frame_result.get("similar_products", []):
-                model_key = f"{product.get('brand', 'Unknown')}_{product.get('model_name', 'Unknown')}"
+                brand = product.get("brand", "Unknown")
+                model_name = product.get("model_name", "Unknown")
+                color = product.get("color", "Unknown")
+                
+                # Crear key único para el modelo
+                model_key = f"{brand}_{model_name}_{color}"
                 
                 if model_key not in model_stats:
                     model_stats[model_key] = {
                         'product': product,
                         'scores': [],
                         'frame_indices': [],
-                        'timestamps': []
+                        'detection_frequency': 0,
+                        'total_score': 0,
+                        'max_score': 0,
+                        'min_score': 1.0
                     }
                 
-                model_stats[model_key]['scores'].append(product.get('score', 0))
-                model_stats[model_key]['frame_indices'].append(frame_result['frame_index'])
-                model_stats[model_key]['timestamps'].append(frame_result['timestamp_seconds'])
+                # Agregar detección
+                score = product.get("score", 0)
+                model_stats[model_key]['scores'].append(score)
+                model_stats[model_key]['frame_indices'].append(frame_result.get('frame_index', 0))
+                model_stats[model_key]['detection_frequency'] += 1
+                model_stats[model_key]['total_score'] += score
+                model_stats[model_key]['max_score'] = max(model_stats[model_key]['max_score'], score)
+                model_stats[model_key]['min_score'] = min(model_stats[model_key]['min_score'], score)
         
-        # Análisis estadístico avanzado por modelo
-        weights = config['consolidation_weights']
+        if not model_stats:
+            return {
+                "detected_products": [],
+                "overall_confidence": 0.0,
+                "frames_analyzed": len(frame_results),
+                "models_considered": 0,
+                "ai_info": {"error": "No products detected in any frame"},
+                "should_add_to_training": False
+            }
+        
+        # Calcular métricas estadísticas avanzadas
+        total_frames = len(frame_results)
+        consolidation_weights = config.get('consolidation_weights', {
+            'mean_score': 0.30,
+            'max_score': 0.20,
+            'consistency': 0.30,
+            'frequency': 0.20
+        })
         
         for model_key, stats in model_stats.items():
-            scores = np.array(stats['scores'])
+            scores = stats['scores']
             
-            # Métricas estadísticas
-            stats['mean_score'] = np.mean(scores)
-            stats['max_score'] = np.max(scores)
-            stats['min_score'] = np.min(scores)
-            stats['std_score'] = np.std(scores)
-            stats['median_score'] = np.median(scores)
-            stats['detection_frequency'] = len(scores)
-            stats['temporal_spread'] = max(stats['timestamps']) - min(stats['timestamps'])
+            # Métricas básicas
+            stats['mean_score'] = sum(scores) / len(scores)
+            stats['median_score'] = sorted(scores)[len(scores) // 2]
+            stats['std_score'] = np.std(scores) if len(scores) > 1 else 0
             
-            # Consistencia (menor desviación = más consistente)
-            stats['consistency_score'] = 1.0 / (1.0 + stats['std_score'])
+            # Métricas de frecuencia
+            stats['frequency_ratio'] = stats['detection_frequency'] / total_frames
             
-            # Frecuencia relativa
-            stats['frequency_ratio'] = len(scores) / len(frame_results)
+            # Consistencia temporal
+            frame_indices = sorted(stats['frame_indices'])
+            if len(frame_indices) > 1:
+                frame_gaps = [frame_indices[i+1] - frame_indices[i] for i in range(len(frame_indices)-1)]
+                stats['temporal_spread'] = max(frame_indices) - min(frame_indices)
+                stats['avg_frame_gap'] = sum(frame_gaps) / len(frame_gaps)
+                stats['consistency_score'] = min(1.0, 1.0 / (1.0 + stats['std_score']))
+            else:
+                stats['temporal_spread'] = 0
+                stats['avg_frame_gap'] = 0
+                stats['consistency_score'] = 1.0
             
-            # Score final ponderado con pesos configurables
+            # Score final consolidado con pesos configurables
             stats['final_score'] = (
-                stats['mean_score'] * weights['mean_score'] +
-                stats['max_score'] * weights['max_score'] +
-                stats['consistency_score'] * weights['consistency'] +
-                stats['frequency_ratio'] * weights['frequency']
+                stats['mean_score'] * consolidation_weights['mean_score'] +
+                stats['max_score'] * consolidation_weights['max_score'] +
+                stats['consistency_score'] * consolidation_weights['consistency'] +
+                stats['frequency_ratio'] * consolidation_weights['frequency']
             )
         
         # Ordenar por score final
@@ -704,6 +816,7 @@ class VideoProcessorOptimized:
                 'frequency_percentage': round(stats['frequency_ratio'] * 100, 1),
                 'temporal_spread_seconds': round(stats['temporal_spread'], 1),
                 'frames_detected': stats['frame_indices'],
+                'detection_method': 'automatic_ai_detection',
                 'statistical_metrics': {
                     'median_score': round(stats['median_score'], 3),
                     'std_deviation': round(stats['std_score'], 3),
@@ -729,11 +842,13 @@ class VideoProcessorOptimized:
             "processing_method": "ultra_optimized_multi_frame",
             "strategy_used": config['strategy'],
             "consolidation_method": "weighted_statistical_analysis",
-            "quality_filters": list(config['quality_config'].keys()),
+            "quality_filters": list(config.get('quality_config', {}).keys()),
             "batch_processing": True,
             "parallel_optimization": settings.ENABLE_PARALLEL_PROCESSING,
             "models_analyzed": len(model_stats),
-            "statistical_confidence": "high" if overall_confidence > 0.8 else "medium" if overall_confidence > 0.5 else "low"
+            "statistical_confidence": "high" if overall_confidence > 0.8 else "medium" if overall_confidence > 0.5 else "low",
+            "consolidation_weights": consolidation_weights,
+            "frames_with_detections": len([f for f in frame_results if f.get('similar_products')])
         }
         
         return {
@@ -742,9 +857,10 @@ class VideoProcessorOptimized:
             "frames_analyzed": len(frame_results),
             "models_considered": len(model_stats),
             "ai_info": ai_info,
-            "should_add_to_training": overall_confidence >= settings.MIN_CONFIDENCE_FOR_TRAINING
+            "should_add_to_training": overall_confidence >= settings.MIN_CONFIDENCE_FOR_TRAINING,
+            "consolidation_type": "automatic_ai_detection"
         }
-
+        
     def _get_360_product_config(self, duration: float) -> Dict[str, Any]:
         """🎯 Configuración específica para productos 360° completos"""
         
